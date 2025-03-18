@@ -70,7 +70,7 @@ void loop() {
   server.handleClient();
 
   // Keep blinking the LED if in AP mode
-  if (WiFi.status() == WL_AP_LISTENING) {
+  if (WiFi.status() == WL_IDLE_STATUS) {
     blinkLED();
   }
 }
