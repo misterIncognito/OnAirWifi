@@ -1,6 +1,6 @@
 #include <ESP8266WiFi.h>
 #include <ESP8266WebServer.h>
-#include <ArduinoJson.h>
+#include <Arduino_JSON.h>
 #include <FS.h>  // For SPIFFS
 
 // Default AP (Access Point) credentials
@@ -78,13 +78,12 @@ void connectToWiFi(const char* ssid, const char* password) {
 // Handler for the "/status" GET endpoint
 void handleStatus() {
   // Create a JSON object to structure the response
-  StaticJsonDocument<200> responseDoc;
+  JSONVar responseDoc;
   responseDoc["wifi_status"] = (WiFi.status() == WL_CONNECTED) ? "connected" : "not connected";
   responseDoc["ip"] = (WiFi.status() == WL_CONNECTED) ? WiFi.localIP().toString() : "";
 
   // Serialize the JSON response
-  String responseBody;
-  serializeJson(responseDoc, responseBody);
+  String responseBody = JSON.stringify(responseDoc);
 
   // Send the JSON response
   server.send(200, "application/json", responseBody);
@@ -97,12 +96,11 @@ void handleLedToggle() {
   digitalWrite(ledPin, ledState ? HIGH : LOW);
 
   // Create a JSON object to structure the response
-  StaticJsonDocument<200> responseDoc;
+  JSONVar responseDoc;
   responseDoc["led_state"] = (ledState ? "on" : "off");
 
   // Serialize the JSON response
-  String responseBody;
-  serializeJson(responseDoc, responseBody);
+  String responseBody = JSON.stringify(responseDoc);
 
   // Send the JSON response
   server.send(200, "application/json", responseBody);
@@ -112,53 +110,37 @@ void handleLedToggle() {
 void handleSet() {
   if (server.hasArg("plain")) {
     String body = server.arg("plain");
-    StaticJsonDocument<200> doc;
+    JSONVar doc;
 
     // Deserialize the JSON
-    DeserializationError error = deserializeJson(doc, body);
-    if (error) {
-      // Create an error response in JSON format
-      StaticJsonDocument<200> errorResponse;
-      errorResponse["error"] = "Invalid JSON";
-      
-      // Serialize and send the error response
-      String responseBody;
-      serializeJson(errorResponse, responseBody);
-      server.send(400, "application/json", responseBody);
-      return;
-    }
-
-    // Extract the LED state from the JSON
-    if (doc.containsKey("led")) {
+    doc = JSON.parse(body);
+    if (doc.hasOwnProperty("led")) {
       bool ledState = doc["led"];
       digitalWrite(ledPin, ledState ? HIGH : LOW);
 
       // Create a success response in JSON format
-      StaticJsonDocument<200> successResponse;
+      JSONVar successResponse;
       successResponse["status"] = "LED state updated";
 
       // Serialize and send the success response
-      String responseBody;
-      serializeJson(successResponse, responseBody);
+      String responseBody = JSON.stringify(successResponse);
       server.send(200, "application/json", responseBody);
     } else {
       // Create an error response in JSON format
-      StaticJsonDocument<200> errorResponse;
+      JSONVar errorResponse;
       errorResponse["error"] = "No 'led' key in the request";
 
       // Serialize and send the error response
-      String responseBody;
-      serializeJson(errorResponse, responseBody);
+      String responseBody = JSON.stringify(errorResponse);
       server.send(400, "application/json", responseBody);
     }
   } else {
     // Create an error response for missing data
-    StaticJsonDocument<200> errorResponse;
+    JSONVar errorResponse;
     errorResponse["error"] = "No data received";
 
     // Serialize and send the error response
-    String responseBody;
-    serializeJson(errorResponse, responseBody);
+    String responseBody = JSON.stringify(errorResponse);
     server.send(400, "application/json", responseBody);
   }
 }
@@ -167,24 +149,11 @@ void handleSet() {
 void handleSetWiFi() {
   if (server.hasArg("plain")) {
     String body = server.arg("plain");
-    StaticJsonDocument<200> doc;
+    JSONVar doc;
 
     // Deserialize the JSON
-    DeserializationError error = deserializeJson(doc, body);
-    if (error) {
-      // Create an error response in JSON format
-      StaticJsonDocument<200> errorResponse;
-      errorResponse["error"] = "Invalid JSON";
-      
-      // Serialize and send the error response
-      String responseBody;
-      serializeJson(errorResponse, responseBody);
-      server.send(400, "application/json", responseBody);
-      return;
-    }
-
-    // Extract the SSID and password from the JSON
-    if (doc.containsKey("ssid") && doc.containsKey("password")) {
+    doc = JSON.parse(body);
+    if (doc.hasOwnProperty("ssid") && doc.hasOwnProperty("password")) {
       String newSSID = doc["ssid"];
       String newPassword = doc["password"];
       
@@ -200,33 +169,30 @@ void handleSetWiFi() {
       connectToWiFi(newSSID.c_str(), newPassword.c_str());
 
       // Create a success response in JSON format
-      StaticJsonDocument<200> successResponse;
+      JSONVar successResponse;
       successResponse["status"] = "Wi-Fi credentials updated";
       successResponse["ssid"] = newSSID;
       successResponse["ip"] = WiFi.localIP().toString();
 
       // Serialize and send the success response
-      String responseBody;
-      serializeJson(successResponse, responseBody);
+      String responseBody = JSON.stringify(successResponse);
       server.send(200, "application/json", responseBody);
     } else {
       // Create an error response in JSON format
-      StaticJsonDocument<200> errorResponse;
+      JSONVar errorResponse;
       errorResponse["error"] = "Missing 'ssid' or 'password'";
 
       // Serialize and send the error response
-      String responseBody;
-      serializeJson(errorResponse, responseBody);
+      String responseBody = JSON.stringify(errorResponse);
       server.send(400, "application/json", responseBody);
     }
   } else {
     // Create an error response for missing data
-    StaticJsonDocument<200> errorResponse;
+    JSONVar errorResponse;
     errorResponse["error"] = "No data received";
 
     // Serialize and send the error response
-    String responseBody;
-    serializeJson(errorResponse, responseBody);
+    String responseBody = JSON.stringify(errorResponse);
     server.send(400, "application/json", responseBody);
   }
 }
@@ -235,20 +201,15 @@ void handleSetWiFi() {
 void loadWiFiCredentials() {
   File file = SPIFFS.open("/wifi_config.json", "r");
   if (!file) {
-    Serial.println("Failed to open Wi-Fi config file. Using default credentials.");
+    Serial.println("Failed to open Wi-Fi config file.");
     return;
   }
 
-  StaticJsonDocument<200> doc;
-  DeserializationError error = deserializeJson(doc, file);
-  if (error) {
-    Serial.println("Failed to read Wi-Fi config file. Using default credentials.");
-    return;
-  }
-
-  if (doc.containsKey("ssid") && doc.containsKey("password")) {
-    ssid = doc["ssid"].as<String>();
-    password = doc["password"].as<String>();
+  String fileContent = file.readString();
+  JSONVar doc = JSON.parse(fileContent);
+  if (doc.hasOwnProperty("ssid") && doc.hasOwnProperty("password")) {
+    ssid = (const char*)doc["ssid"];
+    password = (const char*)doc["password"];
   }
 }
 
@@ -260,14 +221,12 @@ void saveWiFiCredentials(const String& newSSID, const String& newPassword) {
     return;
   }
 
-  StaticJsonDocument<200> doc;
+  // Create JSON structure
+  JSONVar doc;
   doc["ssid"] = newSSID;
   doc["password"] = newPassword;
 
-  // Serialize the JSON to the file
-  if (serializeJson(doc, file) == 0) {
-    Serial.println("Failed to write to Wi-Fi config file.");
-  }
-
+  // Write JSON to file
+  file.print(JSON.stringify(doc));
   file.close();
 }
