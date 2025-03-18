@@ -12,6 +12,14 @@ String password = "x";     // Default Wi-Fi credentials changed to "x"
 
 const int ledPin = LED_BUILTIN;  // Built-in LED pin (pin 2 for many boards)
 
+// Define input pins
+const int inputPin1 = D1;
+const int inputPin2 = D2;
+
+// Define output pins
+const int outputPin1 = D3;
+const int outputPin2 = D4;
+
 ESP8266WebServer server(80);  // Create an instance of the server, listening on port 80
 
 unsigned long previousMillis = 0;  // For LED blink timing
@@ -35,6 +43,14 @@ void setup() {
   // Set the LED pin as output
   pinMode(ledPin, OUTPUT);
   digitalWrite(ledPin, LOW);  // Initially turn off the LED
+
+  // Set input pins as inputs
+  pinMode(inputPin1, INPUT);
+  pinMode(inputPin2, INPUT);
+
+  // Set output pins as outputs
+  pinMode(outputPin1, OUTPUT);
+  pinMode(outputPin2, OUTPUT);
 
   // Check if the module should run in AP mode or connect to a Wi-Fi network
   if (ssid == "x" || password == "x") {
@@ -62,6 +78,12 @@ void setup() {
   server.on("/led", HTTP_GET, handleGetLed);          // Get current LED state
   server.on("/led", HTTP_POST, handleSetLed);         // Set LED state
   server.on("/health", HTTP_GET, handleHealth);       // Check health/status of the device
+
+  // New endpoints to control pins
+  server.on("/pin/input", HTTP_GET, handleGetInputPins);  // Get input pin states
+  server.on("/pin/input", HTTP_POST, handleSetInputPins); // Set input pin states
+  server.on("/pin/out", HTTP_GET, handleGetOutputPins);  // Get output pin states
+  server.on("/pin/out", HTTP_POST, handleSetOutputPins); // Set output pin states
 
   // Start the web server
   server.begin();
@@ -103,6 +125,81 @@ void blinkLED() {
     // If the LED is on, turn it off, and vice versa
     ledState = !ledState;
     digitalWrite(ledPin, ledState);
+  }
+}
+
+// Handler for the "/pin/input" GET endpoint (get input pin states)
+void handleGetInputPins() {
+  JSONVar responseDoc;
+  
+  responseDoc["inputPin1"] = digitalRead(inputPin1);
+  responseDoc["inputPin2"] = digitalRead(inputPin2);
+
+  String responseBody = JSON.stringify(responseDoc);
+  server.send(200, "application/json", responseBody);
+}
+
+// Handler for the "/pin/input" POST endpoint (set input pin states)
+void handleSetInputPins() {
+  if (server.hasArg("plain")) {
+    String body = server.arg("plain");
+    JSONVar json = JSON.parse(body);
+    if (JSON.typeof(json) == "undefined") {
+      server.send(400, "application/json", "{\"error\":\"Invalid JSON\"}");
+      return;
+    }
+
+    int pin1State = json["inputPin1"];
+    int pin2State = json["inputPin2"];
+
+    // Set the input pins to the requested states (this could be used for debouncing or other logic)
+    // Note: INPUT pins can't be directly set in a typical way, so you'd probably just check the values.
+
+    JSONVar responseDoc;
+    responseDoc["status"] = "Input pins states received";
+
+    String responseBody = JSON.stringify(responseDoc);
+    server.send(200, "application/json", responseBody);
+  } else {
+    server.send(400, "application/json", "{\"error\":\"Invalid request\"}");
+  }
+}
+
+// Handler for the "/pin/out" GET endpoint (get output pin states)
+void handleGetOutputPins() {
+  JSONVar responseDoc;
+  
+  responseDoc["outputPin1"] = digitalRead(outputPin1);
+  responseDoc["outputPin2"] = digitalRead(outputPin2);
+
+  String responseBody = JSON.stringify(responseDoc);
+  server.send(200, "application/json", responseBody);
+}
+
+// Handler for the "/pin/out" POST endpoint (set output pin states)
+void handleSetOutputPins() {
+  if (server.hasArg("plain")) {
+    String body = server.arg("plain");
+    JSONVar json = JSON.parse(body);
+    if (JSON.typeof(json) == "undefined") {
+      server.send(400, "application/json", "{\"error\":\"Invalid JSON\"}");
+      return;
+    }
+
+    bool pin1State = json["outputPin1"];
+    bool pin2State = json["outputPin2"];
+
+    // Set the output pins to the requested states
+    digitalWrite(outputPin1, pin1State ? HIGH : LOW);
+    digitalWrite(outputPin2, pin2State ? HIGH : LOW);
+
+    JSONVar responseDoc;
+    responseDoc["status"] = "Output pins states updated";
+
+    String responseBody = JSON.stringify(responseDoc);
+    server.send(200, "application/json", responseBody);
+  } else {
+    server.send(400, "application/json", "{\"error\":\"Invalid request\"}");
   }
 }
 
@@ -236,7 +333,6 @@ void loadWiFiCredentials() {
     file.close();
   }
 }
-
 
 // Function to save Wi-Fi credentials to the SPIFFS (persistent storage)
 void saveWiFiCredentials(String ssid, String password) {
