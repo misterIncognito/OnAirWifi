@@ -4,7 +4,7 @@
 #include <FS.h>  // For SPIFFS
 
 // Default AP (Access Point) credentials
-const char* ap_ssid = "ESP8266-Config";
+const char* ap_ssid = "On-AirLEDWiFi";
 const char* ap_password = "12345678";  // Minimum 8 characters
 
 String ssid = "x";         // Default Wi-Fi credentials changed to "x"
