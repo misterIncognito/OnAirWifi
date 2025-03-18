@@ -14,6 +14,11 @@ const int ledPin = LED_BUILTIN;  // Built-in LED pin (pin 2 for many boards)
 
 ESP8266WebServer server(80);  // Create an instance of the server, listening on port 80
 
+unsigned long previousMillis = 0;  // For LED blink timing
+const long interval = 500;         // Interval for LED blink (500 ms)
+
+bool ledState = LOW;  // To keep track of LED state during blink
+
 void setup() {
   // Start serial communication
   Serial.begin(115200);
@@ -31,7 +36,7 @@ void setup() {
   pinMode(ledPin, OUTPUT);
   digitalWrite(ledPin, LOW);  // Initially turn off the LED
 
-  // Start in AP mode if no Wi-Fi credentials are saved or invalid
+  // Check if the module should run in AP mode or connect to a Wi-Fi network
   if (ssid == "default_SSID" || password == "default_PASSWORD") {
     // Start ESP as an Access Point
     WiFi.softAP(ap_ssid, ap_password);  // Start Access Point with specified SSID and password
@@ -40,9 +45,14 @@ void setup() {
     // Print the IP address of the Access Point
     Serial.print("AP IP address: ");
     Serial.println(WiFi.softAPIP());
+
+    // Blink LED while in AP mode
+    blinkLED();
   } else {
     // Attempt to connect to the Wi-Fi network with stored credentials
     connectToWiFi(ssid.c_str(), password.c_str());
+    // Turn the LED on when connected to Wi-Fi
+    digitalWrite(ledPin, HIGH);
   }
 
   // Set up the server endpoints
@@ -58,6 +68,11 @@ void setup() {
 void loop() {
   // Handle client requests
   server.handleClient();
+
+  // Keep blinking the LED if in AP mode
+  if (WiFi.status() == WL_AP_LISTENING) {
+    blinkLED();
+  }
 }
 
 // Function to connect to Wi-Fi
@@ -73,6 +88,20 @@ void connectToWiFi(const char* ssid, const char* password) {
   Serial.println("Connected to WiFi");
   Serial.print("IP Address: ");
   Serial.println(WiFi.localIP());
+}
+
+// Blink the LED
+void blinkLED() {
+  unsigned long currentMillis = millis();
+
+  if (currentMillis - previousMillis >= interval) {
+    // Save the last time LED blinked
+    previousMillis = currentMillis;
+
+    // If the LED is on, turn it off, and vice versa
+    ledState = !ledState;
+    digitalWrite(ledPin, ledState);
+  }
 }
 
 // Handler for the "/status" GET endpoint
