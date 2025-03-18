@@ -1,10 +1,11 @@
 #include <ESP8266WiFi.h>
 #include <ESP8266WebServer.h>
 #include <ArduinoJson.h>
+#include <FS.h>  // For SPIFFS
 
 // Wi-Fi credentials (Initial values)
-const char* ssid = "your_SSID";
-const char* password = "your_PASSWORD";
+String ssid = "default_SSID";
+String password = "default_PASSWORD";
 
 // Define the LED pin
 const int ledPin = LED_BUILTIN;  // Typically the built-in LED pin (pin 2 for many boards)
@@ -14,13 +15,22 @@ ESP8266WebServer server(80);  // Create an instance of the server, listening on 
 void setup() {
   // Start the serial communication
   Serial.begin(115200);
+  
+  // Initialize SPIFFS
+  if (!SPIFFS.begin()) {
+    Serial.println("Failed to mount file system.");
+    return;
+  }
+
+  // Read stored Wi-Fi credentials from SPIFFS
+  loadWiFiCredentials();
 
   // Set the LED pin as an output
   pinMode(ledPin, OUTPUT);
   digitalWrite(ledPin, LOW);  // Turn off LED initially
 
-  // Connect to Wi-Fi
-  connectToWiFi(ssid, password);
+  // Connect to Wi-Fi using stored or default credentials
+  connectToWiFi(ssid.c_str(), password.c_str());
 
   // Handle GET requests at the root path ("/status")
   server.on("/status", HTTP_GET, handleStatus);
@@ -128,6 +138,9 @@ void handleSetWiFi() {
       String newSSID = doc["ssid"];
       String newPassword = doc["password"];
       
+      // Save the new Wi-Fi credentials to SPIFFS
+      saveWiFiCredentials(newSSID, newPassword);
+
       // Disconnect from the current Wi-Fi network
       WiFi.disconnect();
       delay(1000);  // Wait a bit to ensure disconnection
@@ -146,4 +159,45 @@ void handleSetWiFi() {
   } else {
     server.send(400, "application/json", "{\"error\": \"No data received\"}");
   }
+}
+
+// Function to load Wi-Fi credentials from SPIFFS
+void loadWiFiCredentials() {
+  File file = SPIFFS.open("/wifi_config.json", "r");
+  if (!file) {
+    Serial.println("Failed to open Wi-Fi config file. Using default credentials.");
+    return;
+  }
+  
+  StaticJsonDocument<200> doc;
+  DeserializationError error = deserializeJson(doc, file);
+  if (error) {
+    Serial.println("Failed to read Wi-Fi config file. Using default credentials.");
+    return;
+  }
+
+  if (doc.containsKey("ssid") && doc.containsKey("password")) {
+    ssid = doc["ssid"].as<String>();
+    password = doc["password"].as<String>();
+  }
+}
+
+// Function to save Wi-Fi credentials to SPIFFS
+void saveWiFiCredentials(const String& newSSID, const String& newPassword) {
+  File file = SPIFFS.open("/wifi_config.json", "w");
+  if (!file) {
+    Serial.println("Failed to open Wi-Fi config file for writing.");
+    return;
+  }
+
+  StaticJsonDocument<200> doc;
+  doc["ssid"] = newSSID;
+  doc["password"] = newPassword;
+
+  // Serialize the JSON to the file
+  if (serializeJson(doc, file) == 0) {
+    Serial.println("Failed to write to Wi-Fi config file.");
+  }
+
+  file.close();
 }
