@@ -56,11 +56,12 @@ void setup() {
   }
 
   // Set up the server endpoints
-  server.on("/status", HTTP_GET, handleStatus);
-  server.on("/led", HTTP_GET, handleLedToggle);
-  server.on("/set", HTTP_POST, handleSet);
-  server.on("/set_wifi", HTTP_POST, handleSetWiFi);
-  server.on("/reset_wifi", HTTP_GET, handleResetWiFi);  // Reset Wi-Fi credentials endpoint
+  server.on("/wifi", HTTP_GET, handleGetWiFi);        // Get current Wi-Fi credentials
+  server.on("/wifi", HTTP_POST, handleSetWiFi);       // Set new Wi-Fi credentials
+  server.on("/wifi/reset", HTTP_GET, handleResetWiFi); // Reset Wi-Fi credentials to default
+  server.on("/led", HTTP_GET, handleGetLed);          // Get current LED state
+  server.on("/led", HTTP_POST, handleSetLed);         // Set LED state
+  server.on("/health", HTTP_GET, handleHealth);       // Check health/status of the device
 
   // Start the web server
   server.begin();
@@ -105,65 +106,18 @@ void blinkLED() {
   }
 }
 
-// Handler for the "/status" GET endpoint
-void handleStatus() {
-  // Create a JSON object to structure the response
+// Handler for the "/wifi" GET endpoint (get current Wi-Fi credentials)
+void handleGetWiFi() {
   JSONVar responseDoc;
-  responseDoc["wifi_status"] = (WiFi.status() == WL_CONNECTED) ? "connected" : "not connected";
-  responseDoc["ip"] = (WiFi.status() == WL_CONNECTED) ? WiFi.localIP().toString() : "";
+  responseDoc["ssid"] = ssid;
+  responseDoc["password"] = password;
 
-  // Serialize the JSON response
   String responseBody = JSON.stringify(responseDoc);
 
-  // Send the JSON response
   server.send(200, "application/json", responseBody);
 }
 
-// Handler for the "/led" GET endpoint (toggles the LED)
-void handleLedToggle() {
-  static bool ledState = LOW;
-  ledState = !ledState;
-  digitalWrite(ledPin, ledState ? HIGH : LOW);
-
-  // Create a JSON object to structure the response
-  JSONVar responseDoc;
-  responseDoc["led_state"] = (ledState ? "on" : "off");
-
-  // Serialize the JSON response
-  String responseBody = JSON.stringify(responseDoc);
-
-  // Send the JSON response
-  server.send(200, "application/json", responseBody);
-}
-
-// Handler for the "/set" POST endpoint (set LED state)
-void handleSet() {
-  if (server.hasArg("plain")) {
-    String body = server.arg("plain");
-    JSONVar json = JSON.parse(body);
-    if (JSON.typeof(json) == "undefined") {
-      server.send(400, "application/json", "{\"error\":\"Invalid JSON\"}");
-      return;
-    }
-
-    bool led = json["led"];
-    digitalWrite(ledPin, led ? HIGH : LOW);
-
-    // Create a JSON object to structure the response
-    JSONVar responseDoc;
-    responseDoc["status"] = "LED state updated";
-
-    // Serialize the JSON response
-    String responseBody = JSON.stringify(responseDoc);
-
-    // Send the JSON response
-    server.send(200, "application/json", responseBody);
-  } else {
-    server.send(400, "application/json", "{\"error\":\"Invalid request\"}");
-  }
-}
-
-// Handler for the "/set_wifi" POST endpoint (set Wi-Fi credentials)
+// Handler for the "/wifi" POST endpoint (set Wi-Fi credentials)
 void handleSetWiFi() {
   if (server.hasArg("plain")) {
     String body = server.arg("plain");
@@ -203,13 +157,13 @@ void handleSetWiFi() {
   }
 }
 
-// Handler for the "/reset_wifi" GET endpoint (reset Wi-Fi credentials)
+// Handler for the "/wifi/reset" GET endpoint (reset Wi-Fi credentials)
 void handleResetWiFi() {
   // Reset Wi-Fi credentials to default values
   ssid = "x";
   password = "x";
 
-  // Save default credentials to the file system (optional, for persistence)
+  // Save default credentials to the file system
   saveWiFiCredentials(ssid, password);
 
   // Reboot the ESP8266
@@ -220,6 +174,49 @@ void handleResetWiFi() {
   responseDoc["status"] = "Wi-Fi credentials reset to default";
   responseDoc["ssid"] = ssid;
   responseDoc["password"] = password;
+
+  String responseBody = JSON.stringify(responseDoc);
+  server.send(200, "application/json", responseBody);
+}
+
+// Handler for the "/led" GET endpoint (get current LED state)
+void handleGetLed() {
+  JSONVar responseDoc;
+  responseDoc["led_state"] = (ledState ? "on" : "off");
+
+  String responseBody = JSON.stringify(responseDoc);
+  server.send(200, "application/json", responseBody);
+}
+
+// Handler for the "/led" POST endpoint (set LED state)
+void handleSetLed() {
+  if (server.hasArg("plain")) {
+    String body = server.arg("plain");
+    JSONVar json = JSON.parse(body);
+    if (JSON.typeof(json) == "undefined") {
+      server.send(400, "application/json", "{\"error\":\"Invalid JSON\"}");
+      return;
+    }
+
+    bool led = json["led"];
+    digitalWrite(ledPin, led ? HIGH : LOW);
+
+    // Create a JSON object to structure the response
+    JSONVar responseDoc;
+    responseDoc["status"] = "LED state updated";
+
+    String responseBody = JSON.stringify(responseDoc);
+    server.send(200, "application/json", responseBody);
+  } else {
+    server.send(400, "application/json", "{\"error\":\"Invalid request\"}");
+  }
+}
+
+// Handler for the "/health" GET endpoint (check device health/status)
+void handleHealth() {
+  JSONVar responseDoc;
+  responseDoc["status"] = (WiFi.status() == WL_CONNECTED) ? "connected" : "disconnected";
+  responseDoc["ip"] = (WiFi.status() == WL_CONNECTED) ? WiFi.localIP().toString() : "";
 
   String responseBody = JSON.stringify(responseDoc);
   server.send(200, "application/json", responseBody);
