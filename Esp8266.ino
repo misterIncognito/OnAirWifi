@@ -3,48 +3,55 @@
 #include <ArduinoJson.h>
 #include <FS.h>  // For SPIFFS
 
-// Wi-Fi credentials (Initial values)
-String ssid = "default_SSID";
+// Default AP (Access Point) credentials
+const char* ap_ssid = "ESP8266-Config";
+const char* ap_password = "12345678";  // Minimum 8 characters
+
+String ssid = "default_SSID";         // Default Wi-Fi credentials
 String password = "default_PASSWORD";
 
-// Define the LED pin
-const int ledPin = LED_BUILTIN;  // Typically the built-in LED pin (pin 2 for many boards)
+const int ledPin = LED_BUILTIN;  // Built-in LED pin (pin 2 for many boards)
 
 ESP8266WebServer server(80);  // Create an instance of the server, listening on port 80
 
 void setup() {
-  // Start the serial communication
+  // Start serial communication
   Serial.begin(115200);
-  
+
   // Initialize SPIFFS
   if (!SPIFFS.begin()) {
     Serial.println("Failed to mount file system.");
     return;
   }
 
-  // Read stored Wi-Fi credentials from SPIFFS
+  // Load saved Wi-Fi credentials from SPIFFS
   loadWiFiCredentials();
 
-  // Set the LED pin as an output
+  // Set the LED pin as output
   pinMode(ledPin, OUTPUT);
-  digitalWrite(ledPin, LOW);  // Turn off LED initially
+  digitalWrite(ledPin, LOW);  // Initially turn off the LED
 
-  // Connect to Wi-Fi using stored or default credentials
-  connectToWiFi(ssid.c_str(), password.c_str());
+  // Start in AP mode if no Wi-Fi credentials are saved or invalid
+  if (ssid == "default_SSID" || password == "default_PASSWORD") {
+    // Start ESP as an Access Point
+    WiFi.softAP(ap_ssid, ap_password);  // Start Access Point with specified SSID and password
+    Serial.println("AP Mode: Waiting for configuration...");
 
-  // Handle GET requests at the root path ("/status")
+    // Print the IP address of the Access Point
+    Serial.print("AP IP address: ");
+    Serial.println(WiFi.softAPIP());
+  } else {
+    // Attempt to connect to the Wi-Fi network with stored credentials
+    connectToWiFi(ssid.c_str(), password.c_str());
+  }
+
+  // Set up the server endpoints
   server.on("/status", HTTP_GET, handleStatus);
-  
-  // Handle GET requests for "/led" to toggle the LED
   server.on("/led", HTTP_GET, handleLedToggle);
-  
-  // Handle POST requests at "/set" to receive JSON data
   server.on("/set", HTTP_POST, handleSet);
-  
-  // Handle POST requests to change Wi-Fi credentials
   server.on("/set_wifi", HTTP_POST, handleSetWiFi);
 
-  // Start the server
+  // Start the web server
   server.begin();
 }
 
@@ -62,7 +69,7 @@ void connectToWiFi(const char* ssid, const char* password) {
     delay(500);
     Serial.print(".");
   }
-  
+
   Serial.println("Connected to WiFi");
   Serial.print("IP Address: ");
   Serial.println(WiFi.localIP());
@@ -83,10 +90,10 @@ void handleStatus() {
 
 // Handler for the "/led" GET endpoint (toggles the LED)
 void handleLedToggle() {
-  static bool ledState = LOW;  // Store the current state of the LED
+  static bool ledState = LOW;
   ledState = !ledState;
-  digitalWrite(ledPin, ledState ? HIGH : LOW);  // Toggle the LED
-  
+  digitalWrite(ledPin, ledState ? HIGH : LOW);
+
   String response = "LED is now ";
   response += (ledState ? "ON" : "OFF");
 
@@ -99,7 +106,7 @@ void handleSet() {
   if (server.hasArg("plain")) {
     String body = server.arg("plain");
     StaticJsonDocument<200> doc;
-    
+
     // Deserialize the JSON
     DeserializationError error = deserializeJson(doc, body);
     if (error) {
@@ -125,7 +132,7 @@ void handleSetWiFi() {
   if (server.hasArg("plain")) {
     String body = server.arg("plain");
     StaticJsonDocument<200> doc;
-    
+
     // Deserialize the JSON
     DeserializationError error = deserializeJson(doc, body);
     if (error) {
@@ -138,14 +145,15 @@ void handleSetWiFi() {
       String newSSID = doc["ssid"];
       String newPassword = doc["password"];
       
-      // Save the new Wi-Fi credentials to SPIFFS
+      // Save new Wi-Fi credentials to SPIFFS
       saveWiFiCredentials(newSSID, newPassword);
 
-      // Disconnect from the current Wi-Fi network
+      // Disconnect from current Wi-Fi (if connected)
       WiFi.disconnect();
       delay(1000);  // Wait a bit to ensure disconnection
 
-      // Attempt to connect to the new Wi-Fi network
+      // Switch to station mode and connect to the new Wi-Fi network
+      WiFi.mode(WIFI_STA);
       connectToWiFi(newSSID.c_str(), newPassword.c_str());
 
       // Send a success response
@@ -168,7 +176,7 @@ void loadWiFiCredentials() {
     Serial.println("Failed to open Wi-Fi config file. Using default credentials.");
     return;
   }
-  
+
   StaticJsonDocument<200> doc;
   DeserializationError error = deserializeJson(doc, file);
   if (error) {
