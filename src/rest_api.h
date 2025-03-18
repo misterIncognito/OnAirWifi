@@ -7,14 +7,13 @@ extern ESP8266WebServer server;
 
 void setupRestApi();
 void handleGetHealth();
-void handleGetWiFi();
-void handleSetWiFi();
-void handleResetWiFi();
-void handleGetLed();
-void handleSetLed();
 
-void handleGetPins();
-void handleGetOutputPins();
-void handleGetInputPins();
-void handleSetOutputPins();
+// Helper functions to send error responses
+String sendInvalidRequestBodyResponse();
+String sendInvalidJsonResponse();
+
+// Helper function to generate a structured response
+String sendResponse(int responseCode, JSONVar responseDoc);
+
+
 #endif
