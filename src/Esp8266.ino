@@ -3,6 +3,11 @@
 #include <Arduino_JSON.h>
 #include <FS.h>  // For SPIFFS
 
+#include "wifi.h"
+#include "rest_api.h"
+#include "pin_control.h"
+#include "led_control.h"
+
 // Default AP (Access Point) credentials
 const char* ap_ssid = "On-AirLEDWiFi";
 const char* ap_password = "12345678";  // Minimum 8 characters
@@ -58,19 +63,9 @@ void setup() {
     digitalWrite(ledPin, HIGH);
   }
 
-  // Set up the server endpoints
-  server.on("/wifi", HTTP_GET, handleGetWiFi);        // Get current Wi-Fi credentials
-  server.on("/wifi", HTTP_POST, handleSetWiFi);       // Set new Wi-Fi credentials
-  server.on("/wifi/reset", HTTP_GET, handleResetWiFi); // Reset Wi-Fi credentials to default
-  server.on("/led", HTTP_GET, handleGetLed);          // Get current LED state
-  server.on("/led", HTTP_POST, handleSetLed);         // Set LED state
-  server.on("/health", HTTP_GET, handleHealth);       // Check health/status of the device
-
-  // New endpoints to control pins
-  server.on("/pin/input", HTTP_GET, handleGetInputPins);  // Get input pin states
-  server.on("/pin/output", HTTP_GET, handleSetOutputPins);  // Get output pin states
-  server.on("/pin/output", HTTP_POST, handleSetOutputPins); // Set output pin states
-
+  // Setup REST API routes
+  setupRestApi();
+  
   // Start the web server
   server.begin();
 }
@@ -87,23 +82,6 @@ void loop() {
 
 
 
-// Blink the LED
-void blinkLED() {
-  unsigned long currentMillis = millis();
-
-  if (currentMillis - previousMillis >= interval) {
-    // Save the last time LED blinked
-    previousMillis = currentMillis;
-
-    // If the LED is on, turn it off, and vice versa
-    ledState = !ledState;
-    digitalWrite(ledPin, ledState);
-  }
-}
-
-
-
-
 // Handler for the "/wifi" GET endpoint (get current Wi-Fi credentials)
 void handleGetWiFi() {
   JSONVar responseDoc;
@@ -115,108 +93,7 @@ void handleGetWiFi() {
   server.send(200, "application/json", responseBody);
 }
 
-// Handler for the "/wifi" POST endpoint (set Wi-Fi credentials)
-void handleSetWiFi() {
-  if (server.hasArg("plain")) {
-    String body = server.arg("plain");
-    JSONVar json = JSON.parse(body);
-    if (JSON.typeof(json) == "undefined") {
-      server.send(400, "application/json", "{\"error\":\"Invalid JSON\"}");
-      return;
-    }
-
-    String new_ssid = json["ssid"];
-    String new_password = json["password"];
-
-    // Save new Wi-Fi credentials to the file system
-    saveWiFiCredentials(new_ssid, new_password);
-
-    // Restart the ESP8266 with new credentials
-    WiFi.disconnect();
-    delay(1000);
-    WiFi.begin(new_ssid.c_str(), new_password.c_str());
-
-    // Wait for connection
-    while (WiFi.status() != WL_CONNECTED) {
-      delay(500);
-      Serial.print(".");
-    }
-
-    // Send a response with new IP address
-    JSONVar responseDoc;
-    responseDoc["status"] = "Wi-Fi credentials updated";
-    responseDoc["ssid"] = new_ssid;
-    responseDoc["ip"] = WiFi.localIP().toString();
-
-    String responseBody = JSON.stringify(responseDoc);
-    server.send(200, "application/json", responseBody);
-  } else {
-    server.send(400, "application/json", "{\"error\":\"Invalid request\"}");
-  }
 }
 
-// Handler for the "/wifi/reset" GET endpoint (reset Wi-Fi credentials)
-void handleResetWiFi() {
-  // Reset Wi-Fi credentials to default values
-  ssid = "x";
-  password = "x";
 
-  // Save default credentials to the file system
-  saveWiFiCredentials(ssid, password);
-
-  // Reboot the ESP8266
-  ESP.restart();
-
-  // Send response before rebooting
-  JSONVar responseDoc;
-  responseDoc["status"] = "Wi-Fi credentials reset to default";
-  responseDoc["ssid"] = ssid;
-  responseDoc["password"] = password;
-
-  String responseBody = JSON.stringify(responseDoc);
-  server.send(200, "application/json", responseBody);
-}
-
-// Handler for the "/led" GET endpoint (get current LED state)
-void handleGetLed() {
-  JSONVar responseDoc;
-  responseDoc["led_state"] = (ledState ? "on" : "off");
-
-  String responseBody = JSON.stringify(responseDoc);
-  server.send(200, "application/json", responseBody);
-}
-
-// Handler for the "/led" POST endpoint (set LED state)
-void handleSetLed() {
-  if (server.hasArg("plain")) {
-    String body = server.arg("plain");
-    JSONVar json = JSON.parse(body);
-    if (JSON.typeof(json) == "undefined") {
-      server.send(400, "application/json", "{\"error\":\"Invalid JSON\"}");
-      return;
-    }
-
-    bool led = json["led"];
-    digitalWrite(ledPin, led ? HIGH : LOW);
-
-    // Create a JSON object to structure the response
-    JSONVar responseDoc;
-    responseDoc["status"] = "LED state updated";
-
-    String responseBody = JSON.stringify(responseDoc);
-    server.send(200, "application/json", responseBody);
-  } else {
-    server.send(400, "application/json", "{\"error\":\"Invalid request\"}");
-  }
-}
-
-// Handler for the "/health" GET endpoint (check device health/status)
-void handleHealth() {
-  JSONVar responseDoc;
-  responseDoc["status"] = (WiFi.status() == WL_CONNECTED) ? "connected" : "disconnected";
-  responseDoc["ip"] = (WiFi.status() == WL_CONNECTED) ? WiFi.localIP().toString() : "";
-
-  String responseBody = JSON.stringify(responseDoc);
-  server.send(200, "application/json", responseBody);
-}
 

@@ -10,9 +10,5 @@ extern const int outputPin2;
 void setupPins();
 void setPinMode(int pin, int mode);
 void setPinState(int pin, int state);
-void handleGetPins();
-void handleGetOutputPins();
-void handleGetInputPins();
-void handleSetOutputPins();
 
 #endif
