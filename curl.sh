@@ -18,7 +18,7 @@ curl -X GET http://<ESP_IP>/led
 # }
 
 # 3. Toggle LED state (POST request with JSON body)
-curl -X POST http://<ESP_IP>/set \
+curl -X POST http://<ESP_IP>/led \
      -H "Content-Type: application/json" \
      -d '{"led": true}'
 
@@ -28,7 +28,7 @@ curl -X POST http://<ESP_IP>/set \
 # }
 
 # 4. Set new Wi-Fi credentials (POST request with JSON body)
-curl -X POST http://<ESP_IP>/set_wifi \
+curl -X POST http://<ESP_IP>/wifi \
      -H "Content-Type: application/json" \
      -d '{"ssid": "NewSSID", "password": "NewPassword"}'
 
@@ -39,8 +39,5 @@ curl -X POST http://<ESP_IP>/set_wifi \
 #   "ip": "192.168.1.10"
 # }
 
-# 5. Get the Swagger API documentation (OpenAPI)
-curl -X GET http://<ESP_IP>/swagger
-
-# Example Response:
-# (Swagger JSON documentation describing the API)
+# 5. GET health/status of the device (check if connected to Wi-Fi)
+curl -X GET http://<ESP_IP>/health
