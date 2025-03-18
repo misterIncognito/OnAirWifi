@@ -86,7 +86,6 @@ void setup() {
 
   // New endpoints to control pins
   server.on("/pin/input", HTTP_GET, handleGetInputPins);  // Get input pin states
-  server.on("/pin/input", HTTP_POST, handleSetInputPins); // Set input pin states
   server.on("/pin/output", HTTP_GET, handleGetOutputPins);  // Get output pin states
   server.on("/pin/output", HTTP_POST, handleSetOutputPin); // Set output pin states
 
@@ -142,32 +141,6 @@ void handleGetInputPins() {
 
   String responseBody = JSON.stringify(responseDoc);
   server.send(200, "application/json", responseBody);
-}
-
-// Handler for the "/pin/input" POST endpoint (set input pin states)
-void handleSetInputPins() {
-  if (server.hasArg("plain")) {
-    String body = server.arg("plain");
-    JSONVar json = JSON.parse(body);
-    if (JSON.typeof(json) == "undefined") {
-      server.send(400, "application/json", "{\"error\":\"Invalid JSON\"}");
-      return;
-    }
-
-    int pin1State = json["inputPin1"];
-    int pin2State = json["inputPin2"];
-
-    // Set the input pins to the requested states (this could be used for debouncing or other logic)
-    // Note: INPUT pins can't be directly set in a typical way, so you'd probably just check the values.
-
-    JSONVar responseDoc;
-    responseDoc["status"] = "Input pins states received";
-
-    String responseBody = JSON.stringify(responseDoc);
-    server.send(200, "application/json", responseBody);
-  } else {
-    server.send(400, "application/json", "{\"error\":\"Invalid request\"}");
-  }
 }
 
 // Handler for the "/pin/out" GET endpoint (get output pin states)
