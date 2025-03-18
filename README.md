@@ -1,6 +1,8 @@
 # OnAirWifi
 ESP Module On-Air LED Control Over Wi-Fi
 
+![alt text](image.png)
+
 This repository contains code for controlling an On-Air LED indicator using an ESP module (ESP8266 or ESP32) over Wi-Fi. The LED can be turned on or off remotely via a web interface or REST API, making it ideal for applications such as broadcast studios, streaming setups, or any other scenario where remote LED control is needed.
 
 Features:
