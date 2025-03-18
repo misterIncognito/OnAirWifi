@@ -7,8 +7,8 @@
 const char* ap_ssid = "ESP8266-Config";
 const char* ap_password = "12345678";  // Minimum 8 characters
 
-String ssid = "default_SSID";         // Default Wi-Fi credentials
-String password = "default_PASSWORD";
+String ssid = "x";         // Default Wi-Fi credentials changed to "x"
+String password = "x";     // Default Wi-Fi credentials changed to "x"
 
 const int ledPin = LED_BUILTIN;  // Built-in LED pin (pin 2 for many boards)
 
@@ -37,7 +37,7 @@ void setup() {
   digitalWrite(ledPin, LOW);  // Initially turn off the LED
 
   // Check if the module should run in AP mode or connect to a Wi-Fi network
-  if (ssid == "default_SSID" || password == "default_PASSWORD") {
+  if (ssid == "x" || password == "x") {
     // Start ESP as an Access Point
     WiFi.softAP(ap_ssid, ap_password);  // Start Access Point with specified SSID and password
     Serial.println("AP Mode: Waiting for configuration...");
