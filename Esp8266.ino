@@ -77,15 +77,17 @@ void connectToWiFi(const char* ssid, const char* password) {
 
 // Handler for the "/status" GET endpoint
 void handleStatus() {
-  String message = "WiFi Status: ";
-  if (WiFi.status() == WL_CONNECTED) {
-    message += "Connected";
-  } else {
-    message += "Not connected";
-  }
+  // Create a JSON object to structure the response
+  StaticJsonDocument<200> responseDoc;
+  responseDoc["wifi_status"] = (WiFi.status() == WL_CONNECTED) ? "connected" : "not connected";
+  responseDoc["ip"] = (WiFi.status() == WL_CONNECTED) ? WiFi.localIP().toString() : "";
 
-  // Send the response
-  server.send(200, "text/plain", message);
+  // Serialize the JSON response
+  String responseBody;
+  serializeJson(responseDoc, responseBody);
+
+  // Send the JSON response
+  server.send(200, "application/json", responseBody);
 }
 
 // Handler for the "/led" GET endpoint (toggles the LED)
@@ -94,11 +96,16 @@ void handleLedToggle() {
   ledState = !ledState;
   digitalWrite(ledPin, ledState ? HIGH : LOW);
 
-  String response = "LED is now ";
-  response += (ledState ? "ON" : "OFF");
+  // Create a JSON object to structure the response
+  StaticJsonDocument<200> responseDoc;
+  responseDoc["led_state"] = (ledState ? "on" : "off");
 
-  // Send the response
-  server.send(200, "text/plain", response);
+  // Serialize the JSON response
+  String responseBody;
+  serializeJson(responseDoc, responseBody);
+
+  // Send the JSON response
+  server.send(200, "application/json", responseBody);
 }
 
 // Handler for the "/set" POST endpoint (receives JSON data to control the LED)
@@ -110,7 +117,14 @@ void handleSet() {
     // Deserialize the JSON
     DeserializationError error = deserializeJson(doc, body);
     if (error) {
-      server.send(400, "application/json", "{\"error\": \"Invalid JSON\"}");
+      // Create an error response in JSON format
+      StaticJsonDocument<200> errorResponse;
+      errorResponse["error"] = "Invalid JSON";
+      
+      // Serialize and send the error response
+      String responseBody;
+      serializeJson(errorResponse, responseBody);
+      server.send(400, "application/json", responseBody);
       return;
     }
 
@@ -118,12 +132,34 @@ void handleSet() {
     if (doc.containsKey("led")) {
       bool ledState = doc["led"];
       digitalWrite(ledPin, ledState ? HIGH : LOW);
-      server.send(200, "application/json", "{\"status\": \"LED state updated\"}");
+
+      // Create a success response in JSON format
+      StaticJsonDocument<200> successResponse;
+      successResponse["status"] = "LED state updated";
+
+      // Serialize and send the success response
+      String responseBody;
+      serializeJson(successResponse, responseBody);
+      server.send(200, "application/json", responseBody);
     } else {
-      server.send(400, "application/json", "{\"error\": \"No 'led' key in the request\"}");
+      // Create an error response in JSON format
+      StaticJsonDocument<200> errorResponse;
+      errorResponse["error"] = "No 'led' key in the request";
+
+      // Serialize and send the error response
+      String responseBody;
+      serializeJson(errorResponse, responseBody);
+      server.send(400, "application/json", responseBody);
     }
   } else {
-    server.send(400, "application/json", "{\"error\": \"No data received\"}");
+    // Create an error response for missing data
+    StaticJsonDocument<200> errorResponse;
+    errorResponse["error"] = "No data received";
+
+    // Serialize and send the error response
+    String responseBody;
+    serializeJson(errorResponse, responseBody);
+    server.send(400, "application/json", responseBody);
   }
 }
 
@@ -136,7 +172,14 @@ void handleSetWiFi() {
     // Deserialize the JSON
     DeserializationError error = deserializeJson(doc, body);
     if (error) {
-      server.send(400, "application/json", "{\"error\": \"Invalid JSON\"}");
+      // Create an error response in JSON format
+      StaticJsonDocument<200> errorResponse;
+      errorResponse["error"] = "Invalid JSON";
+      
+      // Serialize and send the error response
+      String responseBody;
+      serializeJson(errorResponse, responseBody);
+      server.send(400, "application/json", responseBody);
       return;
     }
 
@@ -156,16 +199,35 @@ void handleSetWiFi() {
       WiFi.mode(WIFI_STA);
       connectToWiFi(newSSID.c_str(), newPassword.c_str());
 
-      // Send a success response
-      String response = "{\"status\": \"Wi-Fi credentials updated\", ";
-      response += "\"ssid\": \"" + newSSID + "\", ";
-      response += "\"ip\": \"" + WiFi.localIP().toString() + "\"}";
-      server.send(200, "application/json", response);
+      // Create a success response in JSON format
+      StaticJsonDocument<200> successResponse;
+      successResponse["status"] = "Wi-Fi credentials updated";
+      successResponse["ssid"] = newSSID;
+      successResponse["ip"] = WiFi.localIP().toString();
+
+      // Serialize and send the success response
+      String responseBody;
+      serializeJson(successResponse, responseBody);
+      server.send(200, "application/json", responseBody);
     } else {
-      server.send(400, "application/json", "{\"error\": \"Missing 'ssid' or 'password'\"}");
+      // Create an error response in JSON format
+      StaticJsonDocument<200> errorResponse;
+      errorResponse["error"] = "Missing 'ssid' or 'password'";
+
+      // Serialize and send the error response
+      String responseBody;
+      serializeJson(errorResponse, responseBody);
+      server.send(400, "application/json", responseBody);
     }
   } else {
-    server.send(400, "application/json", "{\"error\": \"No data received\"}");
+    // Create an error response for missing data
+    StaticJsonDocument<200> errorResponse;
+    errorResponse["error"] = "No data received";
+
+    // Serialize and send the error response
+    String responseBody;
+    serializeJson(errorResponse, responseBody);
+    server.send(400, "application/json", responseBody);
   }
 }
 
