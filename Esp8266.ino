@@ -222,19 +222,21 @@ void handleHealth() {
   server.send(200, "application/json", responseBody);
 }
 
-// Function to load Wi-Fi credentials from the SPIFFS (persistent storage)
+// Load Wi-Fi credentials from the SPIFFS (persistent storage)
 void loadWiFiCredentials() {
   File file = SPIFFS.open("/wifi_credentials.json", "r");
   if (file) {
     String fileContent = file.readString();
     JSONVar json = JSON.parse(fileContent);
     if (JSON.typeof(json) != "undefined") {
-      ssid = json["ssid"];
-      password = json["password"];
+      // Use .as<String>() method to convert to String
+      ssid = String(json["ssid"]);
+      password = String(json["password"]);
     }
     file.close();
   }
 }
+
 
 // Function to save Wi-Fi credentials to the SPIFFS (persistent storage)
 void saveWiFiCredentials(String ssid, String password) {
