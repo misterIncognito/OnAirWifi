@@ -4,7 +4,7 @@
 #include <FS.h>  // For SPIFFS
 
 // Default AP (Access Point) credentials
-const char* ap_ssid = "On-AirLEDWiFi";
+const char* ap_ssid = "ESP8266-Config";
 const char* ap_password = "12345678";  // Minimum 8 characters
 
 String ssid = "x";         // Default Wi-Fi credentials changed to "x"
@@ -60,6 +60,7 @@ void setup() {
   server.on("/led", HTTP_GET, handleLedToggle);
   server.on("/set", HTTP_POST, handleSet);
   server.on("/set_wifi", HTTP_POST, handleSetWiFi);
+  server.on("/reset_wifi", HTTP_GET, handleResetWiFi);  // Reset Wi-Fi credentials endpoint
 
   // Start the web server
   server.begin();
@@ -135,127 +136,118 @@ void handleLedToggle() {
   server.send(200, "application/json", responseBody);
 }
 
-// Handler for the "/set" POST endpoint (receives JSON data to control the LED)
+// Handler for the "/set" POST endpoint (set LED state)
 void handleSet() {
   if (server.hasArg("plain")) {
     String body = server.arg("plain");
-    JSONVar doc;
-
-    // Deserialize the JSON
-    doc = JSON.parse(body);
-    if (doc.hasOwnProperty("led")) {
-      bool ledState = doc["led"];
-      digitalWrite(ledPin, ledState ? HIGH : LOW);
-
-      // Create a success response in JSON format
-      JSONVar successResponse;
-      successResponse["status"] = "LED state updated";
-
-      // Serialize and send the success response
-      String responseBody = JSON.stringify(successResponse);
-      server.send(200, "application/json", responseBody);
-    } else {
-      // Create an error response in JSON format
-      JSONVar errorResponse;
-      errorResponse["error"] = "No 'led' key in the request";
-
-      // Serialize and send the error response
-      String responseBody = JSON.stringify(errorResponse);
-      server.send(400, "application/json", responseBody);
+    JSONVar json = JSON.parse(body);
+    if (JSON.typeof(json) == "undefined") {
+      server.send(400, "application/json", "{\"error\":\"Invalid JSON\"}");
+      return;
     }
-  } else {
-    // Create an error response for missing data
-    JSONVar errorResponse;
-    errorResponse["error"] = "No data received";
 
-    // Serialize and send the error response
-    String responseBody = JSON.stringify(errorResponse);
-    server.send(400, "application/json", responseBody);
+    bool led = json["led"];
+    digitalWrite(ledPin, led ? HIGH : LOW);
+
+    // Create a JSON object to structure the response
+    JSONVar responseDoc;
+    responseDoc["status"] = "LED state updated";
+
+    // Serialize the JSON response
+    String responseBody = JSON.stringify(responseDoc);
+
+    // Send the JSON response
+    server.send(200, "application/json", responseBody);
+  } else {
+    server.send(400, "application/json", "{\"error\":\"Invalid request\"}");
   }
 }
 
-// Handler for the "/set_wifi" POST endpoint (sets new Wi-Fi credentials)
+// Handler for the "/set_wifi" POST endpoint (set Wi-Fi credentials)
 void handleSetWiFi() {
   if (server.hasArg("plain")) {
     String body = server.arg("plain");
-    JSONVar doc;
-
-    // Deserialize the JSON
-    doc = JSON.parse(body);
-    if (doc.hasOwnProperty("ssid") && doc.hasOwnProperty("password")) {
-      String newSSID = doc["ssid"];
-      String newPassword = doc["password"];
-      
-      // Save new Wi-Fi credentials to SPIFFS
-      saveWiFiCredentials(newSSID, newPassword);
-
-      // Disconnect from current Wi-Fi (if connected)
-      WiFi.disconnect();
-      delay(1000);  // Wait a bit to ensure disconnection
-
-      // Switch to station mode and connect to the new Wi-Fi network
-      WiFi.mode(WIFI_STA);
-      connectToWiFi(newSSID.c_str(), newPassword.c_str());
-
-      // Create a success response in JSON format
-      JSONVar successResponse;
-      successResponse["status"] = "Wi-Fi credentials updated";
-      successResponse["ssid"] = newSSID;
-      successResponse["ip"] = WiFi.localIP().toString();
-
-      // Serialize and send the success response
-      String responseBody = JSON.stringify(successResponse);
-      server.send(200, "application/json", responseBody);
-    } else {
-      // Create an error response in JSON format
-      JSONVar errorResponse;
-      errorResponse["error"] = "Missing 'ssid' or 'password'";
-
-      // Serialize and send the error response
-      String responseBody = JSON.stringify(errorResponse);
-      server.send(400, "application/json", responseBody);
+    JSONVar json = JSON.parse(body);
+    if (JSON.typeof(json) == "undefined") {
+      server.send(400, "application/json", "{\"error\":\"Invalid JSON\"}");
+      return;
     }
+
+    String new_ssid = json["ssid"];
+    String new_password = json["password"];
+
+    // Save new Wi-Fi credentials to the file system
+    saveWiFiCredentials(new_ssid, new_password);
+
+    // Restart the ESP8266 with new credentials
+    WiFi.disconnect();
+    delay(1000);
+    WiFi.begin(new_ssid.c_str(), new_password.c_str());
+
+    // Wait for connection
+    while (WiFi.status() != WL_CONNECTED) {
+      delay(500);
+      Serial.print(".");
+    }
+
+    // Send a response with new IP address
+    JSONVar responseDoc;
+    responseDoc["status"] = "Wi-Fi credentials updated";
+    responseDoc["ssid"] = new_ssid;
+    responseDoc["ip"] = WiFi.localIP().toString();
+
+    String responseBody = JSON.stringify(responseDoc);
+    server.send(200, "application/json", responseBody);
   } else {
-    // Create an error response for missing data
-    JSONVar errorResponse;
-    errorResponse["error"] = "No data received";
-
-    // Serialize and send the error response
-    String responseBody = JSON.stringify(errorResponse);
-    server.send(400, "application/json", responseBody);
+    server.send(400, "application/json", "{\"error\":\"Invalid request\"}");
   }
 }
 
-// Function to load Wi-Fi credentials from SPIFFS
+// Handler for the "/reset_wifi" GET endpoint (reset Wi-Fi credentials)
+void handleResetWiFi() {
+  // Reset Wi-Fi credentials to default values
+  ssid = "x";
+  password = "x";
+
+  // Save default credentials to the file system (optional, for persistence)
+  saveWiFiCredentials(ssid, password);
+
+  // Reboot the ESP8266
+  ESP.restart();
+
+  // Send response before rebooting
+  JSONVar responseDoc;
+  responseDoc["status"] = "Wi-Fi credentials reset to default";
+  responseDoc["ssid"] = ssid;
+  responseDoc["password"] = password;
+
+  String responseBody = JSON.stringify(responseDoc);
+  server.send(200, "application/json", responseBody);
+}
+
+// Function to load Wi-Fi credentials from the SPIFFS (persistent storage)
 void loadWiFiCredentials() {
-  File file = SPIFFS.open("/wifi_config.json", "r");
-  if (!file) {
-    Serial.println("Failed to open Wi-Fi config file.");
-    return;
-  }
-
-  String fileContent = file.readString();
-  JSONVar doc = JSON.parse(fileContent);
-  if (doc.hasOwnProperty("ssid") && doc.hasOwnProperty("password")) {
-    ssid = (const char*)doc["ssid"];
-    password = (const char*)doc["password"];
+  File file = SPIFFS.open("/wifi_credentials.json", "r");
+  if (file) {
+    String fileContent = file.readString();
+    JSONVar json = JSON.parse(fileContent);
+    if (JSON.typeof(json) != "undefined") {
+      ssid = json["ssid"];
+      password = json["password"];
+    }
+    file.close();
   }
 }
 
-// Function to save Wi-Fi credentials to SPIFFS
-void saveWiFiCredentials(const String& newSSID, const String& newPassword) {
-  File file = SPIFFS.open("/wifi_config.json", "w");
-  if (!file) {
-    Serial.println("Failed to open Wi-Fi config file for writing.");
-    return;
+// Function to save Wi-Fi credentials to the SPIFFS (persistent storage)
+void saveWiFiCredentials(String ssid, String password) {
+  File file = SPIFFS.open("/wifi_credentials.json", "w");
+  if (file) {
+    JSONVar json;
+    json["ssid"] = ssid;
+    json["password"] = password;
+    String jsonString = JSON.stringify(json);
+    file.print(jsonString);
+    file.close();
   }
-
-  // Create JSON structure
-  JSONVar doc;
-  doc["ssid"] = newSSID;
-  doc["password"] = newPassword;
-
-  // Write JSON to file
-  file.print(JSON.stringify(doc));
-  file.close();
 }
